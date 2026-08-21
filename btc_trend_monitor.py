@@ -1,15 +1,16 @@
 """
 BTC Trend Monitor
 ------------------
-מושך נתוני מחירים של ביטקוין מ-Bybit, מחשב אינדיקטורים טכניים לשני מסלולים
+מושך נתוני מחירים ש�  ביטקוין מ-Binance, מחשב אינדיקטורים טכניים לשני מסלולים
 (קצר וארוך), ושולח איתות לטלגרם רק כשיש שינוי מגמה אמיתי (Long/Short/Neutral).
 
-מסלול קצר (SHORT_TERM):  interval=60 (1h), EMA 9/21 + MACD + OBV
-מסלול ארוך (LONG_TERM):  interval=D  (יומי), EMA 50/200 + ADX + OBV
+מסלול קצר (SHORT_TERM):  interval=1h, EMA 9/21 + MACD + OBV
+מסלול ארוך (LONG_TERM):  interval=1d, EMA 50/200 + ADX + OBV
 
 הרצה:
     python btc_trend_monitor.py short   # בודק ושולח איתות למסלול הקצר
-    python btc_trend_monitor.py long   # בודל ושח איתות למסלול הנוש"""
+    python btc_trend_monitor.py long    # בודק ושולח איתות למסלול הארוך
+"""
 
 import os
 import sys
@@ -18,11 +19,10 @@ import requests
 import numpy as np
 import pandas as pd
 
-# ---------- הגמנזת ----------
+# ---------- הגדרות ----------
 
-BYBIT_KLINE_URL = "https://api.bybit.com/v5/market/kline"
+BINANCE_KLINE_URL = "https://api.binance.com/api/v3/klines"
 SYMBOL = "BTCUSDT"
-CATEGORY = "linear"  # חוצי USDT-Perpetual; אפשק "spot""אמל תעדיף נתוני ספוט
 
 TELEGRAM_BOT_TOKEN = os.environ.get("CRYPTO_TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("CRYPTO_TELEGRAM_CHAT_ID")
@@ -31,13 +31,13 @@ STATE_FILE = "state.json"
 
 TIMEFRAMES = {
     "short": {
-        "interval": "60",       # 1 שעה
+        "interval": "1h",       # 1 שעה
         "limit": 300,
         "state_key": "short_term",
         "label": "טווח קצר (1H)",
     },
     "long": {
-        "interval": "D",        # יומי
+        "interval": "1d",       # יומי
         "limit": 300,
         "state_key": "long_term",
         "label": "טווח ארוך (יומי)",
@@ -48,34 +48,33 @@ TIMEFRAMES = {
 # ---------- משיכת נתונים ----------
 
 def fetch_klines(interval: str, limit: int = 300) -> pd.DataFrame:
-    """מושך נרות היסטוריים מ-Bybit ומחזיר DataFrame ממוין מהישן לחדש."""
+    """מושך נרות היסטוריים מ-Binance ומחזיר DataFrame ממוין מהישן לחדש."""
     params = {
-        "category": CATEGORY,
         "symbol": SYMBOL,
         "interval": interval,
         "limit": limit,
     }
-    resp = requests.get(BYBIT_KLINE_URL, params=params, timeout=15)
+    resp = requests.get(BINANCE_KLINE_URL, params=params, timeout=15)
     resp.raise_for_status()
-    data = resp.json()
+    rows = resp.json()
 
-    if data.get("retCode") != 0:
-        raise RuntimeError(f"Bybit API error: {data.get('retMsg')}")
+    if not isinstance(rows, list):
+        raise RuntimeError(f"Binance API error: {rows}")
 
-    rows = data["result"]["list"]
-    # Bybit מחזיר [startTime, open, high, low, close, volume, turnover], מהחדש לישן
-    df = pd.DataFrame(
-        rows,
-        columns=["timestamp", "open", "high", "low", "close", "volume", "turnover"],
-    )
-    df = df.astype({
+    # Binance מחזיר לכל נר: [openTime, open, high, low, close, volume, closeTime,
+    # quoteAssetVolume, numTrades, takerBuyBaseVol, takerBuyQuoteVol, ignore]
+    df = pd.DataFrame(rows, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "close_time", "quote_asset_volume", "num_trades",
+        "taker_buy_base", "taker_buy_quote", "ignore",
+    ])
+    df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype({
         "timestamp": "int64",
         "open": "float64",
         "high": "float64",
         "low": "float64",
         "close": "float64",
         "volume": "float64",
-        "turnover": "float64",
     })
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df = df.sort_values("timestamp").reset_index(drop=True)
