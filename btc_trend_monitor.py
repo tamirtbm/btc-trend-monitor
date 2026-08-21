@@ -21,7 +21,7 @@ import pandas as pd
 
 # ---------- הגדרות ----------
 
-BINANCE_KLINE_URL = "https://api.binance.com/api/v3/klines"
+BINANCE_KLINE_URL = "https://data-api.binance.vision/api/v3/klines"
 SYMBOL = "BTCUSDT"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("CRYPTO_TELEGRAM_BOT_TOKEN")
