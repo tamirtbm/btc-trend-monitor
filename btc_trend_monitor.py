@@ -1,7 +1,7 @@
 """
 BTC Trend Monitor
 ------------------
-מושך נתוני מחירים ש�  ביטקוין מ-Binance, מחשב אינדיקטורים טכניים לשני מסלולים
+מושך נתוני מחירים ש�  ביטשוין מ-Binance, מחשב אינדיקטורים טכניים לשני מסלולים
 (קצר וארוך), ושולח איתות לטלגרם רק כשיש שינוי מגמה אמיתי (Long/Short/Neutral).
 
 מסלול קצר (SHORT_TERM):  interval=1h, EMA 9/21 + MACD + OBV
@@ -68,13 +68,14 @@ def fetch_klines(interval: str, limit: int = 300) -> pd.DataFrame:
         "close_time", "quote_asset_volume", "num_trades",
         "taker_buy_base", "taker_buy_quote", "ignore",
     ])
-    df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype({
+    df = df[["timestamp", "open", "high", "low", "close", "volume", "taker_buy_base"]].astype({
         "timestamp": "int64",
         "open": "float64",
         "high": "float64",
         "low": "float64",
         "close": "float64",
         "volume": "float64",
+        "taker_buy_base": "float64",
     })
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df = df.sort_values("timestamp").reset_index(drop=True)
@@ -99,6 +100,16 @@ def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
 def obv(df: pd.DataFrame) -> pd.Series:
     direction = np.sign(df["close"].diff()).fillna(0)
     return (direction * df["volume"]).cumsum()
+
+
+def buy_sell_pressure(df: pd.DataFrame, lookback: int) -> float:
+    """יחס נפח קנייה אגרסיבית (taker buy) מתוך סך הנפח, ב-lookback הנרות האחרונים.
+    מעל 0.5 = קונים דומיננטיים; מתחת ל-0.5 = מוכרים דומיננטיים."""
+    recent = df.iloc[-lookback:]
+    total = recent["volume"].sum()
+    if total == 0:
+        return 0.5
+    return recent["taker_buy_base"].sum() / total
 
 
 def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -140,6 +151,7 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
     ema_bullish = last["ema9"] > last["ema21"]
     macd_bullish = last["macd"] > last["macd_signal"]
     obv_rising = df["obv"].iloc[-1] > df["obv"].iloc[-5]  # מגמת OBV ב-5 נרות אחרונים
+    buy_ratio = buy_sell_pressure(df, lookback=5)
 
     if ema_bullish and macd_bullish:
         trend = "LONG"
@@ -156,6 +168,7 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
         "macd": round(last["macd"], 2),
         "macd_signal": round(last["macd_signal"], 2),
         "obv_rising": bool(obv_rising),
+        "buy_ratio": round(buy_ratio * 100, 1),
     }
 
 
@@ -171,6 +184,7 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
     ema_bullish = last["ema50"] > last["ema200"]
     trend_strong = last["adx"] > 20
     obv_rising = df["obv"].iloc[-1] > df["obv"].iloc[-10]
+    buy_ratio = buy_sell_pressure(df, lookback=10)
 
     if trend_strong and ema_bullish:
         trend = "LONG"
@@ -186,6 +200,7 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
         "ema200": round(last["ema200"], 2),
         "adx": round(last["adx"], 2),
         "obv_rising": bool(obv_rising),
+        "buy_ratio": round(buy_ratio * 100, 1),
     }
 
 
@@ -221,6 +236,8 @@ def send_telegram_message(text: str):
 def format_signal_message(label: str, prev_trend: str, result: dict) -> str:
     trend_emoji = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}
     obv_text = "עולה (תומך במגמה)" if result["obv_rising"] else "לא תומך"
+    buy_ratio = result["buy_ratio"]
+    pressure_text = f"קונים {buy_ratio}% / מוכרים {round(100 - buy_ratio, 1)}%"
 
     lines = [
         f"<b>⚡ שינוי מגמה - BTC ⚡</b>",
@@ -228,6 +245,7 @@ def format_signal_message(label: str, prev_trend: str, result: dict) -> str:
         f"{prev_trend} → <b>{trend_emoji.get(result['trend'], '')} {result['trend']}</b>",
         f"מחיר נוכחי: ${result['price']:,}",
         f"OBV: {obv_text}",
+        f"לחץ קנייה/מכירה: {pressure_text}",
     ]
     return "\n".join(lines)
 
