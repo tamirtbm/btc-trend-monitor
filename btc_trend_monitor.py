@@ -8,8 +8,10 @@ BTC Trend Monitor
 מסלול ארוך (LONG_TERM):  interval=1d, EMA 50/200 + ADX + OBV
 
 הרצה:
-    python btc_trend_monitor.py short   # בודק ושולח איתות למסלול הקצר
-    python btc_trend_monitor.py long    # בודק ושולח איתות למסלול הארוך
+    python btc_trend_monitor.py short              # בודק BTCUSDT במסלול הקצר
+    python btc_trend_monitor.py long                # בודק BTCUSDT במסלול הארוך
+    python btc_trend_monitor.py short SOLUSDT       # בודק מטבע אחר במסלול הקצר
+    python btc_trend_monitor.py long ETHUSDT        # בודק מטבע אחר במסלול הארוך
 """
 
 import os
@@ -22,7 +24,7 @@ import pandas as pd
 # ---------- הגדרות ----------
 
 BINANCE_KLINE_URL = "https://data-api.binance.vision/api/v3/klines"
-SYMBOL = "BTCUSDT"
+DEFAULT_SYMBOL = "BTCUSDT"
 
 TELEGRAM_BOT_TOKEN = (os.environ.get("CRYPTO_TELEGRAM_BOT_TOKEN") or "").strip()
 TELEGRAM_CHAT_ID = (os.environ.get("CRYPTO_TELEGRAM_CHAT_ID") or "").strip()
@@ -46,10 +48,10 @@ TIMEFRAMES = {
 
 # ---------- משיכת נתונים ----------
 
-def fetch_klines(interval: str, limit: int = 300) -> pd.DataFrame:
+def fetch_klines(symbol: str, interval: str, limit: int = 300) -> pd.DataFrame:
     """מושך נרות היסטוריים מ-Binance ומחזיר DataFrame ממוין מהישן לחדש."""
     params = {
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "interval": interval,
         "limit": limit,
     }
@@ -232,14 +234,14 @@ def send_telegram_message(text: str):
     resp.raise_for_status()
 
 
-def format_signal_message(label: str, prev_trend: str, result: dict) -> str:
+def format_signal_message(symbol: str, label: str, prev_trend: str, result: dict) -> str:
     trend_emoji = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}
     obv_text = "עולה (תומך במגמה)" if result["obv_rising"] else "לא תומך"
     buy_ratio = result["buy_ratio"]
     pressure_text = f"קונים {buy_ratio}% / מוכרים {round(100 - buy_ratio, 1)}%"
 
     lines = [
-        f"<b>⚡ שינוי מגמה - BTC ⚡</b>",
+        f"<b>⚡ שינוי מגמה - {symbol} ⚡</b>",
         f"מסלול: {label}",
         f"{prev_trend} → <b>{trend_emoji.get(result['trend'], '')} {result['trend']}</b>",
         f"מחיר נוכחי: ${result['price']:,}",
@@ -251,34 +253,37 @@ def format_signal_message(label: str, prev_trend: str, result: dict) -> str:
 
 # ---------- ריצה ----------
 
-def run(track: str):
+def run(track: str, symbol: str = DEFAULT_SYMBOL):
     cfg = TIMEFRAMES[track]
-    df = fetch_klines(cfg["interval"], cfg["limit"])
+    df = fetch_klines(symbol, cfg["interval"], cfg["limit"])
 
     if track == "short":
         result = evaluate_short_term(df)
     else:
         result = evaluate_long_term(df)
 
+    # שומרים תאימות לאחור: עבור BTCUSDT (ברירת המחדל ההיסטורית) המפתח נשאר ללא קידומת
+    state_key = cfg["state_key"] if symbol == DEFAULT_SYMBOL else f"{symbol}_{cfg['state_key']}"
+
     state = load_state()
-    prev_trend = state.get(cfg["state_key"], "NEUTRAL")
+    prev_trend = state.get(state_key, "NEUTRAL")
     new_trend = result["trend"]
 
-    print(f"[{cfg['label']}] מחיר: {result['price']} | מגמה קודמת: {prev_trend} | מגמה נוכחית: {new_trend}")
+    print(f"[{symbol} | {cfg['label']}] מחיר: {result['price']} | מגמה קודמת: {prev_trend} | מגמה נוכחית: {new_trend}")
 
     if new_trend != prev_trend:
-        message = format_signal_message(cfg["label"], prev_trend, result)
+        message = format_signal_message(symbol, cfg["label"], prev_trend, result)
         send_telegram_message(message)
         print("נשלח איתות בטלגרם")
     else:
         print("אין שינוי מגמה - לא נשלח איתות")
 
-    state[cfg["state_key"]] = new_trend
+    state[state_key] = new_trend
     save_state(state)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in ("short", "long"):
-        print("שימוש: python btc_trend_monitor.py [short|long]")
+    if len(sys.argv) not in (2, 3) or sys.argv[1] not in ("short", "long"):
+        print("שימוש: python btc_trend_monitor.py [short|long] [SYMBOL]")
         sys.exit(1)
-    run(sys.argv[1])
+    run(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else DEFAULT_SYMBOL)
