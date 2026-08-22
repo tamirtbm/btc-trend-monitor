@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - "btc_trend_monitor.py"
+      - "requirements.txt"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile check
+        run: python -m py_compile btc_trend_monitor.py
+
+      - name: Import check
+        run: python -c "import btc_trend_monitor"
+
+      - name: CLI argument validation
+        run: |
+          set +e
+          python btc_trend_monitor.py
+          test $? -eq 1 || (echo "expected exit code 1 for missing args" && exit 1)
+          python btc_trend_monitor.py bogus
+          test $? -eq 1 || (echo "expected exit code 1 for invalid track" && exit 1)
