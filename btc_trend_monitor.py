@@ -24,9 +24,8 @@ import pandas as pd
 BINANCE_KLINE_URL = "https://data-api.binance.vision/api/v3/klines"
 SYMBOL = "BTCUSDT"
 
-TELEGRAM_BOT_TOKEN = os.environ.get("CRYPTO_TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("CRYPTO_TELEGRAM_CHAT_ID")
-
+TELEGRAM_BOT_TOKEN = (os.environ.get("CRYPTO_TELEGRAM_BOT_TOKEN") or "").strip()
+TELEGRAM_CHAT_ID = (os.environ.get("CRYPTO_TELEGRAM_CHAT_ID") or "").strip()
 STATE_FILE = "state.json"
 
 TIMEFRAMES = {
