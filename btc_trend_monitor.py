@@ -12,6 +12,7 @@ BTC Trend Monitor
     python btc_trend_monitor.py long                # בודק BTCUSDT במסלול הארוך
     python btc_trend_monitor.py short SOLUSDT       # בודק מטבע אחר במסלול הקצר
     python btc_trend_monitor.py long ETHUSDT        # בודק מטבע אחר במסלול הארוך
+    python btc_trend_monitor.py test                # שולח הודעת בדיקה לטלגרם
 """
 
 import os
@@ -282,8 +283,17 @@ def run(track: str, symbol: str = DEFAULT_SYMBOL):
     save_state(state)
 
 
+def run_test():
+    """שולח הודעת בדיקה לטלגרם, בלי תלות במגמה או ב-state - כדי לוודא שהחיבור תקין."""
+    send_telegram_message("✅ בדיקה - btc-trend-monitor מחובר כראוי לטלגרם")
+    print("נשלחה הודעת בדיקה בטלגרם")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) not in (2, 3) or sys.argv[1] not in ("short", "long"):
-        print("שימוש: python btc_trend_monitor.py [short|long] [SYMBOL]")
+    if len(sys.argv) == 2 and sys.argv[1] == "test":
+        run_test()
+    elif len(sys.argv) in (2, 3) and sys.argv[1] in ("short", "long"):
+        run(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else DEFAULT_SYMBOL)
+    else:
+        print("שימוש: python btc_trend_monitor.py [short|long] [SYMBOL] | test")
         sys.exit(1)
-    run(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else DEFAULT_SYMBOL)
