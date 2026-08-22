@@ -22,7 +22,10 @@ jobs:
         env:
           CRYPTO_TELEGRAM_BOT_TOKEN: ${{ secrets.CRYPTO_TELEGRAM_BOT_TOKEN }}
           CRYPTO_TELEGRAM_CHAT_ID: ${{ secrets.CRYPTO_TELEGRAM_CHAT_ID }}
-        run: python btc_trend_monitor.py short
+        run: |
+          for symbol in BTCUSDT SOLUSDT ETHUSDT ENAUSDT; do
+            python btc_trend_monitor.py short "$symbol"
+          done
 
       - name: Commit updated state
         run: |
