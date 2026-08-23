@@ -4,8 +4,11 @@ BTC Trend Monitor
 מושך נתוני מחירים ש�  ביטשוין מ-Binance, מחשב אינדיקטורים טכניים לשני מסלולים
 (קצר וארוך), ושולח איתות לטלגרם רק כשיש שינוי מגמה אמיתי (Long/Short/Neutral).
 
-מסלול קצר (SHORT_TERM):  interval=1h, EMA 9/21 + MACD + OBV
-מסלול ארוך (LONG_TERM):  interval=1d, EMA 50/200 + ADX + OBV
+מסלול קצר (SHORT_TERM):  interval=1h, EMA 9/21 + MACD, באישור OBV/לחץ קנייה/RSI(14)
+מסלול ארוך (LONG_TERM):  interval=1d, EMA 50/200 + ADX, באישור OBV/לחץ קנייה/RSI(14)
+
+איתות LONG/SHORT דורש גם כיוון מגמה (EMA+MACD / EMA+ADX) וגם לפחות 2 מתוך 3
+אישורים (OBV, לחץ קנייה, RSI) באותו כיוון - כדי לצמצם איתותי שווא בשוק צידי.
 
 הרצה:
     python btc_trend_monitor.py short              # בודק BTCUSDT במסלול הקצר
@@ -114,6 +117,16 @@ def buy_sell_pressure(df: pd.DataFrame, lookback: int) -> float:
     return recent["taker_buy_base"].sum() / total
 
 
+def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
 def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     high, low, close = df["high"], df["low"], df["close"]
 
@@ -147,6 +160,7 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
     df["macd"] = macd_line
     df["macd_signal"] = signal_line
     df["obv"] = obv(df)
+    df["rsi"] = rsi(df["close"])
 
     last = df.iloc[-1]
 
@@ -154,10 +168,14 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
     macd_bullish = last["macd"] > last["macd_signal"]
     obv_rising = df["obv"].iloc[-1] > df["obv"].iloc[-5]  # מגמת OBV ב-5 נרות אחרונים
     buy_ratio = buy_sell_pressure(df, lookback=5)
+    rsi_value = last["rsi"]
 
-    if ema_bullish and macd_bullish:
+    bullish_confirmations = sum([obv_rising, buy_ratio > 0.5, rsi_value > 50])
+    bearish_confirmations = sum([not obv_rising, buy_ratio < 0.5, rsi_value < 50])
+
+    if ema_bullish and macd_bullish and bullish_confirmations >= 2:
         trend = "LONG"
-    elif (not ema_bullish) and (not macd_bullish):
+    elif (not ema_bullish) and (not macd_bullish) and bearish_confirmations >= 2:
         trend = "SHORT"
     else:
         trend = "NEUTRAL"
@@ -171,6 +189,7 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
         "macd_signal": round(last["macd_signal"], 2),
         "obv_rising": bool(obv_rising),
         "buy_ratio": round(buy_ratio * 100, 1),
+        "rsi": round(rsi_value, 1),
     }
 
 
@@ -180,6 +199,7 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
     df["ema200"] = ema(df["close"], 200)
     df["adx"] = adx(df)
     df["obv"] = obv(df)
+    df["rsi"] = rsi(df["close"])
 
     last = df.iloc[-1]
 
@@ -187,13 +207,17 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
     trend_strong = last["adx"] > 20
     obv_rising = df["obv"].iloc[-1] > df["obv"].iloc[-10]
     buy_ratio = buy_sell_pressure(df, lookback=10)
+    rsi_value = last["rsi"]
 
-    if trend_strong and ema_bullish:
+    bullish_confirmations = sum([obv_rising, buy_ratio > 0.5, rsi_value > 50])
+    bearish_confirmations = sum([not obv_rising, buy_ratio < 0.5, rsi_value < 50])
+
+    if trend_strong and ema_bullish and bullish_confirmations >= 2:
         trend = "LONG"
-    elif trend_strong and not ema_bullish:
+    elif trend_strong and not ema_bullish and bearish_confirmations >= 2:
         trend = "SHORT"
     else:
-        trend = "NEUTRAL"  # אין מגמה מספיק חזקה (ADX נמוך)
+        trend = "NEUTRAL"  # אין מגמה מספיק חזקה, או שאין רוב אישורים לכיוון
 
     return {
         "trend": trend,
@@ -203,6 +227,7 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
         "adx": round(last["adx"], 2),
         "obv_rising": bool(obv_rising),
         "buy_ratio": round(buy_ratio * 100, 1),
+        "rsi": round(rsi_value, 1),
     }
 
 
@@ -248,6 +273,7 @@ def format_signal_message(symbol: str, label: str, prev_trend: str, result: dict
         f"מחיר נוכחי: ${result['price']:,}",
         f"OBV: {obv_text}",
         f"לחץ קנייה/מכירה: {pressure_text}",
+        f"RSI(14): {result['rsi']}",
     ]
     return "\n".join(lines)
 
