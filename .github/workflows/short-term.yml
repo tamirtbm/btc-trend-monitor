@@ -2,7 +2,7 @@ name: BTC Short-Term Trend Check
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # כל 15 דקות
+    - cron: "7,22,37,52 * * * *"   # כל 15 דקות, בהיסט מהדקות העגולות (0/15/30/45 עמוסות ב-GitHub Actions)
   workflow_dispatch: {}
 
 jobs:
