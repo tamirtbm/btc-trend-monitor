@@ -3,7 +3,7 @@
   "long_term": "SHORT",
   "SOLUSDT_short_term": "LONG",
   "ETHUSDT_short_term": "LONG",
-  "ENAUSDT_short_term": "LONG",
+  "ENAUSDT_short_term": "NEUTRAL",
   "SOLUSDT_long_term": "SHORT",
   "ETHUSDT_long_term": "SHORT",
   "ENAUSDT_long_term": "SHORT"
