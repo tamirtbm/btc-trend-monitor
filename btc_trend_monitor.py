@@ -10,6 +10,10 @@ BTC Trend Monitor
 איתות LONG/SHORT דורש גם כיוון מגמה (EMA+MACD / EMA+ADX) וגם לפחות 2 מתוך 3
 אישורים (OBV, לחץ קנייה, RSI) באותו כיוון - כדי לצמצם איתותי שווא בשוק צידי.
 
+כשיוצאים מ-LONG (מגמה קודמת LONG, חדשה שונה), ההודעה כוללת גם דירוג דחיפות:
+היפוך מלא (כיוון+אישורים תומכים בירידה) מול היחלשות בלבד (כיוון עדיין חיובי,
+רק פחות אישורים) - כדי לעזור להחליט אם לצאת עכשיו או רק לעקוב.
+
 הרצה:
     python btc_trend_monitor.py short              # בודק BTCUSDT במסלול הקצר
     python btc_trend_monitor.py long                # בודק BTCUSDT במסלול הארוך
@@ -173,15 +177,25 @@ def evaluate_short_term(df: pd.DataFrame) -> dict:
     bullish_confirmations = sum([obv_rising, buy_ratio > 0.5, rsi_value > 50])
     bearish_confirmations = sum([not obv_rising, buy_ratio < 0.5, rsi_value < 50])
 
-    if ema_bullish and macd_bullish and bullish_confirmations >= 2:
+    if ema_bullish and macd_bullish:
+        direction = "up"
+    elif (not ema_bullish) and (not macd_bullish):
+        direction = "down"
+    else:
+        direction = "mixed"  # EMA ו-MACD לא מסכימים על כיוון
+
+    if direction == "up" and bullish_confirmations >= 2:
         trend = "LONG"
-    elif (not ema_bullish) and (not macd_bullish) and bearish_confirmations >= 2:
+    elif direction == "down" and bearish_confirmations >= 2:
         trend = "SHORT"
     else:
         trend = "NEUTRAL"
 
     return {
         "trend": trend,
+        "direction": direction,
+        "bullish_confirmations": int(bullish_confirmations),
+        "bearish_confirmations": int(bearish_confirmations),
         "price": round(last["close"], 2),
         "ema9": round(last["ema9"], 2),
         "ema21": round(last["ema21"], 2),
@@ -212,15 +226,25 @@ def evaluate_long_term(df: pd.DataFrame) -> dict:
     bullish_confirmations = sum([obv_rising, buy_ratio > 0.5, rsi_value > 50])
     bearish_confirmations = sum([not obv_rising, buy_ratio < 0.5, rsi_value < 50])
 
-    if trend_strong and ema_bullish and bullish_confirmations >= 2:
+    if not trend_strong:
+        direction = "weak"  # ADX נמוך - אין מגמה מספיק חזקה, בלי קשר לכיוון ה-EMA
+    elif ema_bullish:
+        direction = "up"
+    else:
+        direction = "down"
+
+    if direction == "up" and bullish_confirmations >= 2:
         trend = "LONG"
-    elif trend_strong and not ema_bullish and bearish_confirmations >= 2:
+    elif direction == "down" and bearish_confirmations >= 2:
         trend = "SHORT"
     else:
-        trend = "NEUTRAL"  # אין מגמה מספיק חזקה, או שאין רוב אישורים לכיוון
+        trend = "NEUTRAL"
 
     return {
         "trend": trend,
+        "direction": direction,
+        "bullish_confirmations": int(bullish_confirmations),
+        "bearish_confirmations": int(bearish_confirmations),
         "price": round(last["close"], 2),
         "ema50": round(last["ema50"], 2),
         "ema200": round(last["ema200"], 2),
@@ -268,9 +292,27 @@ def format_signal_message(symbol: str, label: str, prev_trend: str, result: dict
 
     lines = [
         f"<b>⚡ שינוי מגמה - {symbol} ⚡</b>",
+    ]
+
+    # אזהרת יציאה מ-LONG: מבדילה בין היפוך מלא לבין היחלשות זמנית של המגמה,
+    # כדי לעזור להחליט אם לצאת עכשיו או רק לעקוב מקרוב
+    if prev_trend == "LONG" and result["trend"] != "LONG":
+        if result["trend"] == "SHORT":
+            lines.append("🚨 <b>היפוך מלא למגמת ירידה</b> - גם הכיוון וגם רוב האישורים תומכים בירידה")
+        elif result["direction"] == "down":
+            lines.append(
+                f"⚠️ <b>הכיוון כבר התהפך לירידה</b> (רק {result['bearish_confirmations']}/3 אישורים) - סימן אזהרה חזק"
+            )
+        else:
+            lines.append(
+                f"⚠️ <b>מגמה נחלשת</b> - הכיוון עדיין חיובי, אך האישורים נחלשו ({result['bullish_confirmations']}/3)"
+            )
+
+    lines += [
         f"מסלול: {label}",
         f"{prev_trend} → <b>{trend_emoji.get(result['trend'], '')} {result['trend']}</b>",
         f"מחיר נוכחי: ${result['price']:,}",
+        f"אישורים: {result['bullish_confirmations']}/3 לעלייה, {result['bearish_confirmations']}/3 לירידה",
         f"OBV: {obv_text}",
         f"לחץ קנייה/מכירה: {pressure_text}",
         f"RSI(14): {result['rsi']}",
