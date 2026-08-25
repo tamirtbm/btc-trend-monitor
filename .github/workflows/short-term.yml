@@ -1,8 +1,11 @@
 name: BTC Short-Term Trend Check
 
 on:
+  # הטריגר העיקרי הוא שירות cron חיצוני שקורא ל-workflow_dispatch כל 5 דקות
+  # (ה-schedule המובנה של GitHub התעכב בפועל בשעות, ראו PR שהוסיף את זה).
+  # ה-schedule כאן הוא רק גיבוי שעתי למקרה שהשירות החיצוני נופל.
   schedule:
-    - cron: "7,22,37,52 * * * *"   # כל 15 דקות, בהיסט מהדקות העגולות (0/15/30/45 עמוסות ב-GitHub Actions)
+    - cron: "17 * * * *"
   workflow_dispatch: {}
 
 jobs:
