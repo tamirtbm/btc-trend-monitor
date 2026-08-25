@@ -1,6 +1,9 @@
 name: BTC Long-Term Trend Check
 
 on:
+  # הטריגר העיקרי הוא שירות cron חיצוני שקורא ל-workflow_dispatch פעם ביום
+  # (ה-schedule המובנה של GitHub לא אמין - ראו short-term.yml). ה-schedule
+  # כאן הוא רק גיבוי יומי למקרה שהשירות החיצוני נופל.
   schedule:
     - cron: "10 6 * * *"   # פעם ביום, 06:10 UTC
   workflow_dispatch: {}
