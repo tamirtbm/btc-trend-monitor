@@ -5,6 +5,6 @@
   "ETHUSDT_short_term": "LONG",
   "ENAUSDT_short_term": "LONG",
   "SOLUSDT_long_term": "NEUTRAL",
-  "ETHUSDT_long_term": "SHORT",
+  "ETHUSDT_long_term": "NEUTRAL",
   "ENAUSDT_long_term": "NEUTRAL"
 }
