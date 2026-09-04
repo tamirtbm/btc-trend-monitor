@@ -1,8 +1,8 @@
 {
-  "short_term": "LONG",
+  "short_term": "NEUTRAL",
   "long_term": "NEUTRAL",
   "SOLUSDT_short_term": "NEUTRAL",
-  "ETHUSDT_short_term": "NEUTRAL",
+  "ETHUSDT_short_term": "LONG",
   "ENAUSDT_short_term": "NEUTRAL",
   "SOLUSDT_long_term": "NEUTRAL",
   "ETHUSDT_long_term": "NEUTRAL",
