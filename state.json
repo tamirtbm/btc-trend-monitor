@@ -1,10 +1,10 @@
 {
   "short_term": "LONG",
-  "long_term": "SHORT",
+  "long_term": "NEUTRAL",
   "SOLUSDT_short_term": "LONG",
   "ETHUSDT_short_term": "LONG",
   "ENAUSDT_short_term": "LONG",
   "SOLUSDT_long_term": "NEUTRAL",
-  "ETHUSDT_long_term": "NEUTRAL",
-  "ENAUSDT_long_term": "SHORT"
+  "ETHUSDT_long_term": "LONG",
+  "ENAUSDT_long_term": "LONG"
 }
