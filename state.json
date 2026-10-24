@@ -4,7 +4,7 @@
   "SOLUSDT_short_term": "SHORT",
   "ETHUSDT_short_term": "SHORT",
   "ENAUSDT_short_term": "SHORT",
-  "SOLUSDT_long_term": "LONG",
+  "SOLUSDT_long_term": "NEUTRAL",
   "ETHUSDT_long_term": "NEUTRAL",
   "ENAUSDT_long_term": "NEUTRAL"
 }
